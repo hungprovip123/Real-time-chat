@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Week 3 Chat Application</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .chat-container { height: 500px; }
+        .messages-container { 
+            height: 350px; 
+            overflow-y: auto; 
+            border: 1px solid #ccc; 
+            padding: 10px;
+            background-color: #f8f9fa;
+            font-family: monospace;
+        }
+        .message { 
+            margin-bottom: 8px; 
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .message.own { 
+            background-color: #d1ecf1; 
+            text-align: right;
+        }
+        .message.other { 
+            background-color: #fff; 
+        }
+        .message.system { 
+            background-color: #e2e3e5; 
+            text-align: center;
+            font-style: italic;
+        }
+        .user-info { font-size: 0.8em; color: #666; }
+        .timestamp { font-size: 0.7em; color: #999; }
+        .online-users { 
+            max-height: 150px; 
+            overflow-y: auto; 
+            font-family: monospace;
+        }
+        .connection-status { 
+            padding: 3px 8px; 
+            border-radius: 3px; 
+            font-size: 0.8em;
+            font-family: monospace;
+        }
+        .status-connected { background-color: #d4edda; }
+        .status-disconnected { background-color: #f8d7da; }
+        .status-connecting { background-color: #fff3cd; }
+    </style>
+</head>
+<body>
+    <div class="container mt-3">
+        <div class="row">
+            <div class="col-12">
+                <h3>Week 3 Chat Application</h3>
+                <hr>
+            </div>
+        </div>
+
+        <!-- Connection Form -->
+        <div id="connectionForm" class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Connect to Chat</div>
+                    <div class="card-body">
+                        <form id="connectForm">
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username:</label>
+                                <input type="text" class="form-control" id="username" placeholder="Enter username..." required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="roomId" class="form-label">Room:</label>
+                                <select class="form-select" id="roomId">
+                                    <option value="general">general</option>
+                                    <option value="tech">tech</option>
+                                    <option value="random">random</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Connect</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div id="chatInterface" style="display: none;">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card chat-container">
+                        <div class="card-header d-flex justify-content-between">
+                            <span>Room: <span id="currentRoom"></span></span>
+                            <span id="connectionStatus" class="connection-status status-disconnected">Disconnected</span>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="messages" class="messages-container"></div>
+                        </div>
+                        <div class="card-footer">
+                            <form id="messageForm">
+                                <div class="input-group">
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="messageInput" 
+                                           placeholder="Type message..." 
+                                           maxlength="500"
+                                           disabled>
+                                    <button type="submit" class="btn btn-success" id="sendButton" disabled>Send</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">Online Users</div>
+                        <div class="card-body online-users" id="onlineUsers">
+                            <p class="text-muted">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-header">Info</div>
+                        <div class="card-body">
+                            <p><strong>User:</strong> <span id="currentUsername"></span></p>
+                            <p><strong>ID:</strong> <span id="currentUserId"></span></p>
+                            <button class="btn btn-outline-secondary btn-sm w-100" onclick="disconnect()">Disconnect</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let ws = null;
+        let currentUser = null;
+
+        // Connect to chat
+        document.getElementById('connectForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('📋 Connect form submitted');
+            
+            const username = document.getElementById('username').value.trim();
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!username) {
+                alert('Vui lòng nhập tên hiển thị!');
+                return;
+            }
+
+            connect(username, roomId);
+        });
+
+        function connect(username, roomId) {
+            console.log(`🔌 Connecting with username: ${username}, room: ${roomId}`);
+            
+            // Use username as userID for consistency
+            const userId = username;
+            currentUser = { userId, username, roomId };
+
+            // First check if username is available in room
+            checkUsernameAvailability(userId, username, roomId);
+        }
+
+        function checkUsernameAvailability(userId, username, roomId) {
+            fetch(`/api/v1/rooms/${roomId}/users`)
+                .then(response => response.json())
+                .then(data => {
+                    const existingUsers = data.users || [];
+                    const usernameExists = existingUsers.some(user => user.username === username);
+                    
+                    if (usernameExists) {
+                        alert(`Tên "${username}" đã được sử dụng trong phòng này. Vui lòng chọn tên khác!`);
+                        return;
+                    }
+                    
+                    // Username is available, proceed with WebSocket connection
+                    createWebSocketConnection(userId, username, roomId);
+                })
+                .catch(error => {
+                    console.error('Error checking username:', error);
+                    // Proceed anyway if check fails
+                    createWebSocketConnection(userId, username, roomId);
+                });
+        }
+
+        function createWebSocketConnection(userId, username, roomId) {
+            const wsUrl = `ws://localhost:8080/api/v1/ws?user_id=${encodeURIComponent(userId)}&username=${encodeURIComponent(username)}&room_id=${roomId}`;
+            console.log(`🔗 WebSocket URL: ${wsUrl}`);
+
+            updateConnectionStatus('connecting');
+            
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = function() {
+                console.log('✅ WebSocket connected successfully');
+                updateConnectionStatus('connected');
+                showChatInterface();
+                loadMessageHistory();
+                loadOnlineUsers();
+            };
+
+            ws.onmessage = function(event) {
+                console.log('📥 WebSocket message received:', event.data);
+                try {
+                    const message = JSON.parse(event.data);
+                    console.log('📨 Parsed message:', message);
+                    displayMessage(message);
+                } catch (error) {
+                    console.error('❌ Error parsing message:', error);
+                }
+            };
+
+            ws.onclose = function(event) {
+                console.log('🔌 WebSocket connection closed:', event.code, event.reason);
+                updateConnectionStatus('disconnected');
+                setTimeout(() => {
+                    if (currentUser) {
+                        console.log('🔄 Attempting to reconnect...');
+                        connect(currentUser.username, currentUser.roomId);
+                    }
+                }, 5000);
+            };
+
+            ws.onerror = function(error) {
+                console.error('❌ WebSocket error:', error);
+                updateConnectionStatus('disconnected');
+            };
+        }
+
+        // Send message
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const content = messageInput.value.trim();
+            
+            console.log('🔍 sendMessage called, content:', content);
+            console.log('🔍 WebSocket state:', ws ? ws.readyState : 'null');
+            
+            if (!content) {
+                console.log('⚠️ Empty message, ignoring');
+                return;
+            }
+
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.log('❌ WebSocket not connected');
+                alert('Kết nối bị ngắt. Đang thử kết nối lại...');
+                return;
+            }
+
+            const message = {
+                type: 'message',
+                content: content
+            };
+
+            console.log('📤 Sending message:', message);
+            ws.send(JSON.stringify(message));
+            messageInput.value = '';
+        }
+
+        // Message form handler
+        document.getElementById('messageForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            console.log('🖱️ Send button clicked');
+            sendMessage();
+        });
+
+        // Enter key handler
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                console.log('⌨️ Enter key pressed');
+                sendMessage();
+            }
+        });
+
+        function displayMessage(message) {
+            console.log('🖼️ Displaying message:', message);
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            
+            const isOwnMessage = currentUser && message.user_id === currentUser.userId;
+            const messageClass = message.type === 'join' || message.type === 'leave' ? 'system' : (isOwnMessage ? 'own' : 'other');
+            
+            messageDiv.className = `message ${messageClass}`;
+            
+            let messageHtml = '';
+            if (message.type === 'message') {
+                if (!isOwnMessage) {
+                    messageHtml += `<div class="user-info">${message.username}</div>`;
+                }
+                messageHtml += `<div>${message.content}</div>`;
+            } else {
+                messageHtml = `<div>${message.content}</div>`;
+            }
+            
+            if (message.timestamp) {
+                const time = new Date(message.timestamp).toLocaleTimeString();
+                messageHtml += `<div class="timestamp">${time}</div>`;
+            }
+            
+            messageDiv.innerHTML = messageHtml;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function updateConnectionStatus(status) {
+            const statusElement = document.getElementById('connectionStatus');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            
+            statusElement.className = `connection-status status-${status}`;
+            
+            switch (status) {
+                case 'connected':
+                    statusElement.innerHTML = 'Connected';
+                    messageInput.disabled = false;
+                    sendButton.disabled = false;
+                    break;
+                case 'connecting':
+                    statusElement.innerHTML = 'Connecting...';
+                    messageInput.disabled = true;
+                    sendButton.disabled = true;
+                    break;
+                case 'disconnected':
+                    statusElement.innerHTML = 'Disconnected';
+                    messageInput.disabled = true;
+                    sendButton.disabled = true;
+                    break;
+            }
+        }
+
+        function showChatInterface() {
+            document.getElementById('connectionForm').style.display = 'none';
+            document.getElementById('chatInterface').style.display = 'block';
+            document.getElementById('currentUsername').textContent = currentUser.username;
+            document.getElementById('currentUserId').textContent = currentUser.userId;
+            document.getElementById('currentRoom').textContent = currentUser.roomId;
+        }
+
+        function loadMessageHistory() {
+            console.log('📚 Loading message history for room:', currentUser.roomId);
+            fetch(`/api/v1/rooms/${currentUser.roomId}/messages?limit=20`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('📚 Message history loaded:', data);
+                    if (data.messages) {
+                        data.messages.forEach(message => displayMessage(message));
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading messages:', error);
+                });
+        }
+
+        function loadOnlineUsers() {
+            fetch(`/api/v1/rooms/${currentUser.roomId}/users`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('👥 Online users loaded:', data);
+                    const container = document.getElementById('onlineUsers');
+                    
+                    if (data.users && data.users.length > 0) {
+                        container.innerHTML = data.users.map(user => 
+                            `<div class="mb-1">
+                                • ${user.username}
+                            </div>`
+                        ).join('');
+                    } else {
+                        container.innerHTML = '<p class="text-muted">No users online</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error loading online users:', error);
+                    document.getElementById('onlineUsers').innerHTML = '<p class="text-danger">Lỗi tải danh sách</p>';
+                });
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+            currentUser = null;
+            document.getElementById('connectionForm').style.display = 'block';
+            document.getElementById('chatInterface').style.display = 'none';
+            document.getElementById('messages').innerHTML = '';
+        }
+
+        // Auto refresh online users every 30 seconds
+        setInterval(() => {
+            if (currentUser && ws && ws.readyState === WebSocket.OPEN) {
+                loadOnlineUsers();
+            }
+        }, 30000);
+    </script>
+</body>
+</html> 

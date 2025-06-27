@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - chat_network
+
+  chat_app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=week3-chat-secret-key
+      - PORT=8080
+      - RATE_LIMIT_REQUESTS=10
+      - RATE_LIMIT_WINDOW=60
+    depends_on:
+      - redis
+    networks:
+      - chat_network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+
+networks:
+  chat_network:
+    driver: bridge 

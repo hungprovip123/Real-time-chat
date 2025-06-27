@@ -1,0 +1,268 @@
+{
+	"info": {
+		"_postman_id": "week3-chat-api",
+		"name": "Week3 Chat API",
+		"description": "Collection để test Real-Time Chat API với Go, WebSocket, Redis",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Health Check",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has status ok\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.status).to.eql(\"ok\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				},
+				"description": "Kiểm tra server có hoạt động không"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Message History",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has messages array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('messages');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/v1/rooms/{{room_id}}/messages?limit=20",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "rooms", "{{room_id}}", "messages"],
+					"query": [
+						{
+							"key": "limit",
+							"value": "20",
+							"description": "Số lượng tin nhắn tối đa"
+						}
+					]
+				},
+				"description": "Lấy lịch sử tin nhắn của một phòng chat"
+			},
+			"response": []
+		},
+		{
+			"name": "Get Online Users",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Response has online_users array\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData).to.have.property('online_users');",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/v1/rooms/{{room_id}}/users",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "rooms", "{{room_id}}", "users"]
+				},
+				"description": "Lấy danh sách user đang online trong phòng"
+			},
+			"response": []
+		},
+		{
+			"name": "Send Message (HTTP Fallback)",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"pm.test(\"Status code is 200\", function () {",
+							"    pm.response.to.have.status(200);",
+							"});",
+							"",
+							"pm.test(\"Message sent successfully\", function () {",
+							"    var jsonData = pm.response.json();",
+							"    pm.expect(jsonData.message).to.include(\"gửi\");",
+							"});"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"username\": \"{{username}}\",\n    \"content\": \"Hello from Postman! 📨\",\n    \"room_id\": \"{{room_id}}\",\n    \"type\": \"message\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/messages",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "messages"]
+				},
+				"description": "Gửi tin nhắn qua HTTP (không phải WebSocket)"
+			},
+			"response": []
+		},
+		{
+			"name": "Send Message - Rate Limit Test",
+			"event": [
+				{
+					"listen": "test",
+					"script": {
+						"exec": [
+							"// Gửi 15 requests liên tục để test rate limit",
+							"if (pm.response.code === 429) {",
+							"    pm.test(\"Rate limit working - got 429\", function () {",
+							"        pm.response.to.have.status(429);",
+							"    });",
+							"} else {",
+							"    pm.test(\"Message sent successfully\", function () {",
+							"        pm.response.to.have.status(200);",
+							"    });",
+							"}"
+						],
+						"type": "text/javascript"
+					}
+				}
+			],
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"user_id\": \"{{user_id}}\",\n    \"username\": \"{{username}}\",\n    \"content\": \"Spam test message {{$randomInt}}\",\n    \"room_id\": \"{{room_id}}\",\n    \"type\": \"message\"\n}"
+				},
+				"url": {
+					"raw": "{{base_url}}/api/v1/messages",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "messages"]
+				},
+				"description": "Test rate limiting - gửi nhiều requests để trigger rate limit"
+			},
+			"response": []
+		},
+		{
+			"name": "WebSocket Connection Info",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/api/v1/ws?user_id={{user_id}}&username={{username}}&room_id={{room_id}}",
+					"host": ["{{base_url}}"],
+					"path": ["api", "v1", "ws"],
+					"query": [
+						{
+							"key": "user_id",
+							"value": "{{user_id}}",
+							"description": "Unique user ID"
+						},
+						{
+							"key": "username",
+							"value": "{{username}}",
+							"description": "Display name"
+						},
+						{
+							"key": "room_id",
+							"value": "{{room_id}}",
+							"description": "Chat room ID"
+						}
+					]
+				},
+				"description": "❌ Postman không test được WebSocket trực tiếp.\n\n🔧 Để test WebSocket:\n1. Dùng browser: http://localhost:8082\n2. Dùng wscat: wscat -c ws://localhost:8082/api/v1/ws?user_id=test&username=TestUser&room_id=general\n3. Dùng WebSocket client khác\n\n📝 URL pattern: ws://localhost:8082/api/v1/ws?user_id=USER_ID&username=USERNAME&room_id=ROOM_ID"
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Set random user_id if not exists",
+					"if (!pm.environment.get(\"user_id\")) {",
+					"    pm.environment.set(\"user_id\", \"user_\" + Date.now());",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string",
+			"description": "Base URL của Chat API server"
+		},
+		{
+			"key": "room_id",
+			"value": "general",
+			"type": "string",
+			"description": "ID của phòng chat để test"
+		},
+		{
+			"key": "username",
+			"value": "PostmanUser",
+			"type": "string",
+			"description": "Tên user để test"
+		},
+		{
+			"key": "user_id",
+			"value": "postman_user_123",
+			"type": "string",
+			"description": "User ID để test"
+		}
+	]
+} 
