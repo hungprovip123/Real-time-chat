@@ -48,18 +48,6 @@ go run main.go
 http://localhost:8080
 ```
 
-## Environment Variables
-
-Application sử dụng default values, có thể override:
-
-```bash
-PORT=8080
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=week3-secret-key
-RATE_LIMIT_REQUESTS=10
-RATE_LIMIT_WINDOW=60
-```
-
 ## API Endpoints
 
 - `GET /` - Chat interface
@@ -67,26 +55,3 @@ RATE_LIMIT_WINDOW=60
 - `GET /api/v1/rooms/{roomId}/messages` - Get message history
 - `GET /api/v1/rooms/{roomId}/users` - Get online users
 - `POST /api/v1/messages` - Send message (fallback)
-
-## Project Structure
-
-```
-week3/
-├── main.go              # Entry point
-├── config/              # Configuration
-├── handlers/            # HTTP handlers
-├── models/              # Data structures
-├── redis/               # Redis client
-├── websocket/           # WebSocket logic
-└── templates/           # HTML templates
-```
-
-## How it Works
-
-1. **Client connects** via WebSocket với username & room
-2. **Hub manages** all connections và broadcasting
-3. **Messages persist** trong Redis
-4. **Real-time updates** qua WebSocket channels
-5. **Goroutines handle** concurrent connections
-
-Built for Week 3 assignment - focuses on Go concurrency patterns và real-time communication. 
